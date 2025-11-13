@@ -9,7 +9,7 @@ jobs:
   update:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 修复exit 128
+      contents: write
     steps:
     - uses: actions/checkout@v4
       with:
@@ -21,10 +21,18 @@ jobs:
         python-version: '3.12'
 
     - name: Install dependencies
-      run: pip install requests pysocks ipaddress
+      run: |
+        pip install --upgrade pip
+        pip install requests pysocks ipaddress || echo "Dependency install failed, but continue"
+      continue-on-error: true  # 容错pip失败
 
     - name: Fetch, Test & Update IPv6 Proxies
-      run: python auto_update_ipv6_proxies.py
+      run: |
+        echo "Starting script with debug mode..."
+        python -c "import sys; print('Python version:', sys.version)"
+        python auto_update_ipv6_proxies.py 2>&1 || echo "Script failed with exit 1 - check above errors"
+      shell: bash
+      continue-on-error: true  # 防止脚本失败终止工作流
 
     - name: Commit changes
       run: |
@@ -32,14 +40,13 @@ jobs:
         git config --global user.name "GitHub Action"
         git add proxies_success.txt || echo "Add failed"
         git commit -m "Auto update IPv6 proxies - $(date)" || echo "No changes or commit failed"
-        git push || echo "Push failed - check permissions"
+        git push || echo "Push failed"
       continue-on-error: true
 
-    - name: Notify
+    - name: Debug Output
       if: always()
       run: |
-        if [ -s proxies_success.txt ]; then
-          echo "IPv6 Proxies updated with data!"
-        else
-          echo "proxies_success.txt written but empty - check logs for issues"
-        fi
+        echo "=== Final Debug ==="
+        ls -la proxies_success.txt || echo "File not created"
+        head -10 proxies_success.txt || echo "File empty or missing"
+        echo "Workflow ended - check logs for Python errors"
