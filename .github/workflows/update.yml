@@ -13,7 +13,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # 完整历史
+        fetch-depth: 0
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -30,16 +30,16 @@ jobs:
       run: |
         git config --global user.email "action@github.com"
         git config --global user.name "GitHub Action"
-        git add proxies_success.txt
-        git commit -m "Auto update IPv6 proxies (HTTP/SOCKS5) - $(date)" || echo "No changes to commit"
-        git push || echo "Push failed, check permissions or branch protection"
-      continue-on-error: true  # 防止push失败终止
+        git add proxies_success.txt || echo "Add failed"
+        git commit -m "Auto update IPv6 proxies - $(date)" || echo "No changes or commit failed"
+        git push || echo "Push failed - check permissions"
+      continue-on-error: true
 
     - name: Notify
       if: always()
       run: |
         if [ -s proxies_success.txt ]; then
-          echo "IPv6 Proxies updated! Check proxies_success.txt"
+          echo "IPv6 Proxies updated with data!"
         else
-          echo "No successful proxies written to proxies_success.txt"
+          echo "proxies_success.txt written but empty - check logs for issues"
         fi
