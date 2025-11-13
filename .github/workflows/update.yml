@@ -1,19 +1,19 @@
-name: Auto Update Proxies (Multi-Source)
+name: Auto Update IPv6 Proxies (Multi-Source with SOCKS5)
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # 每天UTC 00:00（北京08:00）
+    - cron: '0 0 * * 1'  # 每周一UTC 00:00（北京周一08:00）
   workflow_dispatch:
 
 jobs:
   update:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 修复exit 128：允许push
+      contents: write  # 修复exit 128
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # 完整历史，防fetch bug
+        fetch-depth: 0  # 完整历史
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -21,23 +21,25 @@ jobs:
         python-version: '3.12'
 
     - name: Install dependencies
-      run: pip install requests
+      run: pip install requests pysocks ipaddress
 
-    - name: Fetch, Test & Update Proxies
-      run: python auto_update_proxies.py
+    - name: Fetch, Test & Update IPv6 Proxies
+      run: python auto_update_ipv6_proxies.py
 
     - name: Commit changes
       run: |
         git config --global user.email "action@github.com"
         git config --global user.name "GitHub Action"
         git add proxies_success.txt
-        if git diff --staged --quiet; then
-          echo "No changes to commit"
-        else
-          git commit -m "Auto update proxies (multi-source) - $(date)"
-          git push
-        fi
+        git commit -m "Auto update IPv6 proxies (HTTP/SOCKS5) - $(date)" || echo "No changes to commit"
+        git push || echo "Push failed, check permissions or branch protection"
+      continue-on-error: true  # 防止push失败终止
 
     - name: Notify
-      if: success()
-      run: echo "Proxies updated successfully! Check proxies_success.txt"
+      if: always()
+      run: |
+        if [ -s proxies_success.txt ]; then
+          echo "IPv6 Proxies updated! Check proxies_success.txt"
+        else
+          echo "No successful proxies written to proxies_success.txt"
+        fi
