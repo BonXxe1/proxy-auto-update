@@ -8,20 +8,18 @@ import random
 # 指定国家
 countries = ['US', 'JP', 'KR', 'SG', 'TW', 'HK']
 
-# 多源配置（GitHub raw + API）
+# 多源配置
 sources = [
-    # GitHub raw
     {'name': 'proxifly', 'url': 'https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/http/data.txt', 'format': 'ip_port_country', 'type': 'txt'},
     {'name': 'TheSpeedX', 'url': 'https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt', 'format': 'ip_port', 'type': 'txt'},
     {'name': 'vakhov', 'url': 'https://raw.githubusercontent.com/vakhov/fresh-proxy-list/main/proxies/http.txt', 'format': 'ip_port', 'type': 'txt'},
     {'name': 'jetkai', 'url': 'https://raw.githubusercontent.com/jetkai/proxy-list/main/online-proxies/txt/proxies-http.txt', 'format': 'ip_port', 'type': 'txt'},
     {'name': 'gfpcom', 'url': 'https://raw.githubusercontent.com/gfpcom/free-proxy-list/main/proxies/http.txt', 'format': 'ip_port', 'type': 'txt'},
-    # API (动态国家)
     {'name': 'proxyscrape', 'base_url': 'https://api.proxyscrape.com/v2/?request=get&protocol=http&timeout=10000&anonymity=elite', 'format': 'ip_port', 'type': 'api'},
     {'name': 'pubproxy', 'base_url': 'http://pubproxy.com/api/proxy?limit=10&type=http', 'format': 'json_ip_port_country', 'type': 'api'},
     {'name': 'proxylister', 'base_url': 'https://proxylister.com/api/proxies?protocol=https&anonymity=elite&limit=10', 'format': 'json_ip_port', 'type': 'api'},
-    {'name': 'getproxylist', 'base_url': 'https://api.getproxylist.com/proxy?protocol[]=http&anonLevel[]=1&limit=10', 'format': 'json_ip_port', 'type': 'api'},
-    {'name': 'free-proxy-list.net', 'url': 'https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=10000&country=all&simplified=true', 'format': 'ip_port', 'type': 'txt'},  # 代理API
+    {'name': 'getproxylist', 'base_url': 'https://api.getproxylist.com/proxy?protocol[]=http&country[]=US&anonLevel[]=1&limit=10', 'format': 'json_ip_port', 'type': 'api'},
+    {'name': 'free-proxy-list.net', 'url': 'https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=10000&country=all&simplified=true', 'format': 'ip_port', 'type': 'txt'},
 ]
 
 def fetch_from_source(source, country=None):
@@ -40,7 +38,7 @@ def fetch_from_source(source, country=None):
                             if len(parts) == 2 and parts[1].strip() in countries:
                                 proxies.append(f"{parts[0].strip()}#{parts[1].strip()}")
                         elif source['format'] == 'ip_port':
-                            proxies.append(f"{line.strip()}#{country or 'US'}")  # 默认US或指定
+                            proxies.append(f"{line.strip()}#{country or 'US'}")
         elif source['type'] == 'api':
             url = source['base_url'] + (f"&country={country}" if country else "")
             resp = requests.get(url, timeout=10)
@@ -53,7 +51,6 @@ def fetch_from_source(source, country=None):
                         if ':' in ip_port and country_code in countries:
                             proxies.append(f"{ip_port}#{country_code}")
                 else:
-                    # TXT API
                     lines = resp.text.strip().split('\n')
                     for line in lines:
                         if ':' in line:
@@ -72,12 +69,12 @@ def test_proxy(proxy_str):
     try:
         resp = requests.get('https://httpbin.org/ip', proxies=proxy_dict, timeout=10)
         delay = round(time.time() - start_time, 2)
-        return resp.status_code == 200 and delay < 5
-    except:
-        return False
+        return resp.status_code == 200 and delay < 5, delay
+    except Exception as e:
+        return False, 0
 
 # 主流程
-print("开始多源代理拉取与测试...")
+print("开始多源代理拉取与测试 (2025-11-13)...")
 all_proxies = []
 for country in countries:
     for source in sources:
@@ -91,18 +88,19 @@ print(f"总独特代理: {len(unique_proxies)}")
 
 # 测试连通性
 success_proxies = []
+stats = defaultdict(int)
 for proxy in unique_proxies:
-    if test_proxy(proxy):
+    success, delay = test_proxy(proxy)
+    if success:
         success_proxies.append(proxy)
-    time.sleep(0.5)  # 限速
+        stats[proxy.split('#')[1]] += 1
+    print(f"测试 {proxy} - {'成功' if success else '失败'} (延迟: {delay}s)")
+    time.sleep(0.5)
 
 # 写入成功文件
 with open('proxies_success.txt', 'w') as f:
     for proxy in success_proxies:
         f.write(proxy + '\n')
 
-print(f"成功代理: {len(success_proxies)} | 写入 proxies_success.txt")
-stats = defaultdict(int)
-for p in success_proxies:
-    stats[p.split('#')[1]] += 1
+print(f"\n成功代理: {len(success_proxies)} | 写入 proxies_success.txt")
 print("国家统计:", dict(stats))
